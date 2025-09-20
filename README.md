@@ -1,5 +1,4 @@
-中文
-# 适用于乌龟服上的吃席插件
+# 适用于乌龟服上的吃席插件 （中文说明）
 #### 1、自动记录死亡消息
 #### 2、全自动吃席(在硬核频道喊话) 这个功能支持手动“开启”和“关闭”操作
 #### 3、自动给死亡角色发送哀悼消息，这个功能支持手动“开启”和“关闭”操作
@@ -13,8 +12,8 @@
 #### /hcdr reset - 删除已经记录的所有死亡消息(慎用，一经删除不可恢复)
 
 
-English translation
-#Hardcore Mode Death Record Plugin for Turtle WoW servers
+
+# Hardcore Mode Death Record Plugin for Turtle WoW servers (English Explanation)
 #### 1. Automatically record death messages
 #### 2. Fully automatic seating (shouting on the hardcore channel) This function supports manual "on" and "off" operations
 #### 3. Automatically send mourning messages to deceased characters, this feature supports manual "on" and "off" operations
