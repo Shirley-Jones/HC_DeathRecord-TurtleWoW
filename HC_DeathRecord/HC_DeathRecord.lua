@@ -69,6 +69,55 @@ HCDR_Frame:SetScript("OnEvent", function()
             HCDR_ProcessDeathMessage(message)
         end
     elseif event == "ADDON_LOADED" and arg1 == "HC_DeathRecord" then
+		-- 注册静态弹出框
+		
+		StaticPopupDialogs["HCDR_CONFIRM_FEAST"] = {
+            text = "是否开启自动发送吃席消息到硬核频道？此功能可能会对别人造成骚扰。",
+            button1 = "确定",
+            button2 = "取消",
+            OnAccept = function()
+                local realmKey = HCDR_GetRealmKey()
+                HCDR_Settings[realmKey].autoSendFeast = true
+                HCDR_AutoSendCheckbox:SetChecked(true)
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：已启用自动发送吃席消息")
+            end,
+            OnCancel = function()
+                HCDR_AutoSendCheckbox:SetChecked(false)
+            end,
+            timeout = 0,
+            whileDead = 1,
+            hideOnEscape = 1
+        }
+		
+        StaticPopupDialogs["HCDR_CONFIRM_CONDOLENCE"] = {
+            text = "是否开启自动发送哀悼消息？此功能可能会对别人造成骚扰。",
+            button1 = "确定",
+            button2 = "取消",
+            OnAccept = function()
+                local realmKey = HCDR_GetRealmKey()
+                HCDR_Settings[realmKey].autoSendCondolence = true
+                HCDR_AutoSendCondolenceCheckbox:SetChecked(true)
+                DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：已启用自动发送哀悼消息")
+            end,
+            OnCancel = function()
+                HCDR_AutoSendCondolenceCheckbox:SetChecked(false)
+            end,
+            timeout = 0,
+            whileDead = 1,
+            hideOnEscape = 1
+        }
+        
+        StaticPopupDialogs["HCDR_CONFIRM_DELETE_ALL"] = {
+            text = "是否删除所有数据？此操作不可撤销。",
+            button1 = "确定",
+            button2 = "取消",
+            OnAccept = function()
+                HCDR_CommandHandler("reset")
+            end,
+            timeout = 0,
+            whileDead = 1,
+            hideOnEscape = 1
+        }
         -- 插件加载时初始化数据
         HCDR_InitializeData()
     elseif event == "PLAYER_LOGIN" then
@@ -504,32 +553,28 @@ end)
 
 
 -- 添加自动发送吃席复选框
-local AutoSendCheckbox = CreateFrame("CheckButton", "HCDR_AutoSendCheckbox", HCDR_Frame, "UICheckButtonTemplate")
-AutoSendCheckbox:SetWidth(20)
-AutoSendCheckbox:SetHeight(20)
-AutoSendCheckbox:SetPoint("BOTTOMLEFT", 20, 20)
+local HCDR_AutoSendCheckbox = CreateFrame("CheckButton", "HCDR_AutoSendCheckbox", HCDR_Frame, "UICheckButtonTemplate")
+HCDR_AutoSendCheckbox:SetWidth(20)
+HCDR_AutoSendCheckbox:SetHeight(20)
+HCDR_AutoSendCheckbox:SetPoint("BOTTOMLEFT", 20, 20)
 
 -- 添加复选框文本
 local AutoSendText = HCDR_Frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-AutoSendText:SetPoint("LEFT", AutoSendCheckbox, "RIGHT", 5, 0)
+AutoSendText:SetPoint("LEFT", HCDR_AutoSendCheckbox, "RIGHT", 5, 0)
 AutoSendText:SetText("自动发送吃席消息到硬核频道")
 
-AutoSendCheckbox:SetScript("OnClick", function()
+HCDR_AutoSendCheckbox:SetScript("OnClick", function()
     local realmKey = HCDR_GetRealmKey()
-    -- 直接使用函数传入的第一个参数（通常为self）来获取复选框状态
-    local isChecked = this:GetChecked() and true or false -- 确保为布尔值
-
-    -- 立即保存状态到全局变量
-    HCDR_Settings[realmKey].autoSendFeast = isChecked
-
-    -- 提供一些反馈
+    local isChecked = this:GetChecked() and true or false
+    
+    -- 当用户勾选复选框时显示提示
     if isChecked then
-        DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：已启用自动发送吃席消息")
+        StaticPopup_Show("HCDR_CONFIRM_FEAST")
     else
+        -- 直接保存禁用状态
+        HCDR_Settings[realmKey].autoSendFeast = isChecked
         DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：已禁用自动发送吃席消息")
     end
-    -- 调试输出，确认保存的值
-    -- DEFAULT_CHAT_FRAME:AddMessage("Debug: Check state saved as "..tostring(HCDR_Settings[realmKey].autoSendFeast))
 end)
 
 -- 添加自动发送哀悼消息复选框
@@ -562,11 +607,13 @@ LevelText:SetText("级及以上")
 HCDR_AutoSendCondolenceCheckbox:SetScript("OnClick", function()
     local realmKey = HCDR_GetRealmKey()
     local isChecked = this:GetChecked() and true or false
-    HCDR_Settings[realmKey].autoSendCondolence = isChecked
-
+    
+    -- 当用户勾选复选框时显示提示
     if isChecked then
-        DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：已启用自动发送哀悼消息")
+        StaticPopup_Show("HCDR_CONFIRM_CONDOLENCE")
     else
+        -- 直接保存禁用状态
+        HCDR_Settings[realmKey].autoSendCondolence = isChecked
         DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：已禁用自动发送哀悼消息")
     end
 end)
@@ -1002,7 +1049,7 @@ SlashCmdList["HCDR"] = HCDR_CommandHandler
 -- =====================================================================
 
 DeleteAllButton:SetScript("OnClick", function()
-    HCDR_CommandHandler("reset")
+    StaticPopup_Show("HCDR_CONFIRM_DELETE_ALL")
 end)
 
 -- 初始隐藏框架

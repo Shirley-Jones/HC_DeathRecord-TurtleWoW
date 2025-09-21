@@ -1,5 +1,5 @@
 ## Interface: 11200
-## Title: 专家模式死亡讣告 |cff00ffff1.1
+## Title: 专家模式吃席增强 |cff00ffff1.1
 ## Notes: 记录专家模式角色死亡信息,项目使用DeepSeek AI制作的,调用命令: /hcdr
 ## Title-zhCN:|CFF33AAFF[辅助]|R |cff1fff1f专家模式死亡讣告|R
 ## Notes-zhCN: 记录专家模式角色死亡信息|N|CFFFFFFFF|R|CFF33FF33项目使用DeepSeek AI制作的|N|CFFFFFFFF|R|CFF33FF33调用命令: /hcdr|R
@@ -9,7 +9,7 @@
 ## Notes-enUS: Recording death information of characters in hardcore mode|N|CFFFFFFFF|R|CFF33FF33The project was created using DeepSeek AI|N|CFFFFFFFF|R|CFF33FF33Call command: /hcdr|R
 ## X-Repple: 辅助
 ## Author: DeepSeek AI
-## Version: 1.4
+## Version: 1.5
 ## SavedVariables: HCDR_Data, HCDR_Settings
 
 HC_DeathRecord.lua
