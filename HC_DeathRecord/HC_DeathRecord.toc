@@ -1,14 +1,14 @@
 ## Interface: 11200
-## Title: 专家模式吃席增强 |cff00ffff1.1
-## Notes: 记录专家模式角色死亡信息,项目使用DeepSeek AI制作的,调用命令: /hcdr
-## Title-zhCN:|CFF33AAFF[辅助]|R |cff1fff1f专家模式死亡讣告|R
-## Notes-zhCN: 记录专家模式角色死亡信息|N|CFFFFFFFF|R|CFF33FF33项目使用DeepSeek AI制作的|N|CFFFFFFFF|R|CFF33FF33调用命令: /hcdr|R
-## Title-zhTW:|CFF33AAFF[輔助]|R |cff1fff1fBoomtime 專家模式死亡訃告|R
-## Notes-zhTW: 記錄專家模式角色死亡資訊|N|CFFFFFFFF|R|CFF33FF33項目使用DeepSeek AI製作的|N|CFFFFFFFF|R|CFF33FF33調用命令: /hcdr|R
-## Title-enUS:|CFF33AAFF[Assistance]|R |cff1fff1fHardcore mode death obituary|R
-## Notes-enUS: Recording death information of characters in hardcore mode|N|CFFFFFFFF|R|CFF33FF33The project was created using DeepSeek AI|N|CFFFFFFFF|R|CFF33FF33Call command: /hcdr|R
+## Title: |CFF33AAFF[Assistance]|R|cff1fff1f Hardcore mode death obituary|R
+## Notes: Recording death information of characters in hardcore mode|N|CFFFFFFFF|R|CFF33FF33Call command: /hcdr|R
+## Title-zhCN:|CFF33AAFF[辅助]|R|cff1fff1f 专家模式吃席增强|R
+## Notes-zhCN: 记录专家模式角色死亡信息|N|CFFFFFFFF|R|CFF33FF33调用命令: /hcdr|R
+## Title-zhTW:|CFF33AAFF[輔助]|R|cff1fff1f 專家模式吃席增强|R
+## Notes-zhTW: 記錄專家模式角色死亡資訊|N|CFFFFFFFF|R|CFF33FF33調用命令: /hcdr|R
+## Title-enUS:|CFF33AAFF[Assistance]|R|cff1fff1f Hardcore mode death obituary|R
+## Notes-enUS: Recording death information of characters in hardcore mode|N|CFFFFFFFF|R|CFF33FF33Call command: /hcdr|R
 ## X-Repple: 辅助
-## Author: DeepSeek AI
+## Author: Shirley
 ## Version: 1.5
 ## SavedVariables: HCDR_Data, HCDR_Settings
 
