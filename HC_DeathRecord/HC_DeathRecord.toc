@@ -1,15 +1,15 @@
 ## Interface: 11200
 ## Title: |CFF33AAFF[Assistance]|R|cff1fff1f Hardcore mode death obituary|R
-## Notes: Recording death information of characters in hardcore mode|N|CFFFFFFFF|R|CFF33FF33Call command: /hcdr|R
-## Title-zhCN:|CFF33AAFF[辅助]|R|cff1fff1f 专家模式吃席增强|R
-## Notes-zhCN: 记录专家模式角色死亡信息|N|CFFFFFFFF|R|CFF33FF33调用命令: /hcdr|R
-## Title-zhTW:|CFF33AAFF[輔助]|R|cff1fff1f 專家模式吃席增强|R
-## Notes-zhTW: 記錄專家模式角色死亡資訊|N|CFFFFFFFF|R|CFF33FF33調用命令: /hcdr|R
+## Notes: Recording death information of characters in hardcore mode|N|CFFFFFFFF|R|CFF33FF33Call command: /hcdr|N|CFFFFFFFF|R|cFFFF69B4by Shirley TurtleWoW Special edition|R
+## Title-zhCN:|CFF33AAFF[辅助]|R|cff1fff1f 硬核模式吃席增强|R
+## Notes-zhCN: 记录硬核模式角色死亡信息|N|CFFFFFFFF|R|CFF33FF33调用命令: /hcdr|N|CFFFFFFFF|R|cFFFF69B4by Shirley 乌龟服专用版|R
+## Title-zhTW:|CFF33AAFF[輔助]|R|cff1fff1f 硬核模式吃席增强|R
+## Notes-zhTW: 記錄硬核模式角色死亡資訊|N|CFFFFFFFF|R|CFF33FF33調用命令: /hcdr|N|CFFFFFFFF|R|cFFFF69B4by Shirley TurtleWoW 專用版|R
 ## Title-enUS:|CFF33AAFF[Assistance]|R|cff1fff1f Hardcore mode death obituary|R
-## Notes-enUS: Recording death information of characters in hardcore mode|N|CFFFFFFFF|R|CFF33FF33Call command: /hcdr|R
+## Notes-enUS: Recording death information of characters in hardcore mode|N|CFFFFFFFF|R|CFF33FF33Call command: /hcdr|N|CFFFFFFFF|R|cFFFF69B4by Shirley TurtleWoW Special edition|R
 ## X-Repple: 辅助
 ## Author: Shirley
-## Version: 1.5
+## Version: 1.8
 ## SavedVariables: HCDR_Data, HCDR_Settings
 
 HC_DeathRecord.lua

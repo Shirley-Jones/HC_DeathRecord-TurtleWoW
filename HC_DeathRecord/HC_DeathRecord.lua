@@ -1,5 +1,3 @@
-
-
 -- 定义全局存储变量 - 按服务器独立存储
 HCDR_Data = HCDR_Data or {}
 HCDR_CurrentPage = HCDR_CurrentPage or 1
@@ -116,14 +114,12 @@ HCDR_Frame:SetScript("OnEvent", function()
     elseif event == "PLAYER_LOGIN" then
         -- 玩家登录后确保界面更新
         HCDR_UpdateDisplay()
-		-- +++ 新增：加载时自动执行 .hcm 命令 +++
+		-- 加载时自动执行 .hcm 命令 
         local realmKey = HCDR_GetRealmKey()
         -- 获取保存的等级，如果没有则使用默认值1
         local level = (HCDR_Settings[realmKey] and HCDR_Settings[realmKey].Receivedeathmessagelevel) or 1
         -- 执行命令
 		SendChatMessage(".hcm "..level)
-        -- 可选：输出调试信息
-        -- DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：已自动设置接收等级为 " .. level .. " 级的死亡消息")
     end
 end)
 
@@ -141,10 +137,25 @@ function HCDR_InitializeData()
         HCDR_Settings[realmKey] = { 
             autoSendFeast = false, 
             autoSendCondolence = false,
-            condolenceMinLevel = 60, -- 默认的值，默认自动给60级及以上的死亡玩家发送哀悼消息
-            Receivedeathmessagelevel = 1,  -- 默认的值，默认接收1级以上的死亡消息
-			levelFilter = "all"  -- 新增等级筛选设置
+            feastMinLevel = 60, -- 吃席消息的默认等级限制
+            condolenceMinLevel = 60, -- 默认自动给60级及以上的死亡玩家发送哀悼消息
+            Receivedeathmessagelevel = 1,  -- 默认接收1级以上的死亡消息
+            levelFilter = "all",  -- 等级筛选设置
+            feastChannel = "world", -- 默认使用world频道
+			customFeastText = "哦豁！哦豁！又嘎一个。上菜了，老板请客！", -- 默认吃席内容
+			customCondolenceText = "你如星辰，虽已陨落，但光芒永存，照亮我们前行的道路.", -- 默认悼念内容
+			shouldAtWithLevel = false,  -- 新增：默认开启艾特对方(包含等级)
         }
+    end
+    
+	-- 确保艾特对方设置存在
+    if HCDR_Settings[realmKey].shouldAtWithLevel == nil then
+        HCDR_Settings[realmKey].shouldAtWithLevel = true
+    end
+	
+    -- 确保频道设置存在
+    if not HCDR_Settings[realmKey].feastChannel then
+        HCDR_Settings[realmKey].feastChannel = "world"
     end
     
     -- 确保UI元素已创建后再更新它们
@@ -159,25 +170,42 @@ function HCDR_InitializeData()
             HCDR_AutoSendCondolenceCheckbox:SetChecked(HCDR_Settings[realmKey].autoSendCondolence or false)
         end
         
-        -- 更新哀悼等级输入框文本 (修正前的HCDR_CondolenceLevelEditBox)
+        -- 更新哀悼等级输入框文本
         if HCDR_CondolenceLevelEditBox then
-            HCDR_CondolenceLevelEditBox:SetText(tostring(HCDR_Settings[realmKey].condolenceMinLevel or 59))
+            HCDR_CondolenceLevelEditBox:SetText(tostring(HCDR_Settings[realmKey].condolenceMinLevel or 60))
         end
         
-        -- 更新接收死亡消息等级输入框文本 (新增的LevelFilterEditBox)
+        -- 更新吃席等级输入框文本
+        if HCDR_FeastLevelEditBox then
+            HCDR_FeastLevelEditBox:SetText(tostring(HCDR_Settings[realmKey].feastMinLevel or 60))
+        end
+        
+        -- 更接收死亡消息等级输入框文本
         if LevelFilterEditBox then
             LevelFilterEditBox:SetText(tostring(HCDR_Settings[realmKey].Receivedeathmessagelevel or 1))
         end
 		
-		-- 设置等级筛选按钮状态
+		-- 更接等级筛选按钮状态
         if LevelFilterButtons and LevelFilterButtons[1] then
             LevelFilterButtons[1]:SetChecked(1)
             HCDR_CurrentLevelFilter = levelRanges[1]
         end
 		
+		-- 在初始化时直接设置输入框内容
+		if HCDR_CustomFeastEditBox then
+			HCDR_CustomFeastEditBox:SetText(HCDR_Settings[realmKey].customFeastText or "哦豁！又嘎一个。上菜了，老板请客！")
+		end
+		
+		if HCDR_CustomCondolenceEditBox then
+			HCDR_CustomCondolenceEditBox:SetText(HCDR_Settings[realmKey].customCondolenceText or "你如星辰，虽已陨落，但光芒永存，照亮我们前行的道路")
+		end
+		
+		if HCDR_ShouldAtCheckbox then
+			HCDR_ShouldAtCheckbox:SetChecked(HCDR_Settings[realmKey].shouldAtWithLevel or false)
+		end
     end
     
-    DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：数据已初始化 for " .. realmKey)
+    -- DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：数据已初始化 for " .. realmKey)
 end
 
 -- 修改死亡消息处理函数，使用正确的等级格式匹配
@@ -188,7 +216,7 @@ function HCDR_ProcessDeathMessage(msg)
     -- 尝试匹配各种死亡消息格式
     local charName, level, killer, zone
     
-    -- 尝试匹配PVP死亡消息（使用正确的等级格式）
+    -- 尝试匹配PVP死亡消息
     charName, level, killer, zone = string.match(msg, "悲剧发生了。硬核角色 (.+)（等级 (%d+)）在 PvP 中落败于 (.+)。这件事发生在 (.+)。愿这一牺牲不会被忘记。")
     if charName then
         level = tonumber(level)
@@ -208,7 +236,7 @@ function HCDR_ProcessDeathMessage(msg)
         return
     end
     
-    -- 尝试匹配PVE死亡消息（使用正确的等级格式）
+    -- 尝试匹配PVE死亡消息
     charName, level, killer, zone = string.match(msg, "悲剧发生了。硬核角色 (.+)（等级 (%d+)）被 (.+)击杀。这发生在 (.+)。愿这一牺牲不会被忘记。")
     if charName then
         level = tonumber(level)
@@ -228,7 +256,7 @@ function HCDR_ProcessDeathMessage(msg)
         return
     end
     
-    -- 尝试匹配溺亡消息（使用正确的等级格式）
+    -- 尝试匹配溺亡消息
     charName, level, zone = string.match(msg, "悲剧发生了。硬核角色 (.+)（等级 (%d+)）已在 (.+) 中溺亡。愿这一牺牲永不被遗忘。")
     if charName then
         level = tonumber(level)
@@ -248,7 +276,7 @@ function HCDR_ProcessDeathMessage(msg)
         return
     end
     
-    -- 尝试匹配年老死亡消息（使用正确的等级格式）
+    -- 尝试匹配年老死亡消息
     charName, level, zone = string.match(msg, "悲剧发生了。硬核角色 (.+)（等级 (%d+)）于 (.+) 年因年老而去世。愿这一牺牲不会被忘记。")
     if charName then
         level = tonumber(level)
@@ -268,7 +296,7 @@ function HCDR_ProcessDeathMessage(msg)
         return
     end
     
-    -- 尝试匹配活活烧死消息（使用正确的等级格式）
+    -- 尝试匹配活活烧死消息
     charName, level, zone = string.match(msg, "悲剧发生了。硬核角色 (.+)（等级 (%d+)）在 (.+) 被活活烧死。愿这一牺牲永不被遗忘。")
     if charName then
         level = tonumber(level)
@@ -293,7 +321,7 @@ end
 
 -- 修改等级提取函数，使用正确的等级格式
 function HCDR_ExtractLevelFromName(message)
-    -- 尝试匹配中文括号中的等级数字（正确的格式）
+    -- 尝试匹配中文括号中的等级数字
     local level = string.match(message, "（等级 (%d+)）")
     if level then
         return tonumber(level)
@@ -315,17 +343,37 @@ function HCDR_ExtractLevelFromName(message)
     return 0
 end
 
--- 在硬核频道发送吃席消息
+-- 4. 修改消息发送函数，确保使用自定义文本
+-- 修改消息发送函数 HCDR_Automaticallysendbanquetmessages
+-- 根据设置决定是否在消息后追加"@角色名 LV等级"
 function HCDR_Automaticallysendbanquetmessages(charName, charLevel)
     local realmKey = HCDR_GetRealmKey()
-	local level = charLevel
+    local level = charLevel
     local pureName = charName
-    if HCDR_Settings[realmKey].autoSendFeast then
-        SendChatMessage("哦豁！又嘎一个。上菜了，老板请客！！！  @"..pureName.." LV"..level, "Hardcore")
+    
+    -- 检查是否启用自动发送吃席消息并且角色等级达到设定值
+    if HCDR_Settings[realmKey].autoSendFeast and level >= HCDR_Settings[realmKey].feastMinLevel then
+        local channelSetting = HCDR_Settings[realmKey].feastChannel or "world"
+        local message = HCDR_Settings[realmKey].customFeastText or "哦豁！又嘎一个。上菜了，老板请客！"
+        
+        -- 根据设置决定是否追加艾特和等级信息
+        if HCDR_Settings[realmKey].shouldAtWithLevel then
+            message = message.."  @"..pureName.." LV"..level
+        end
+        
+        if channelSetting == "Hardcore" then
+            SendChatMessage(message, "Hardcore")
+        elseif channelSetting == "world" then
+            for i=0, 10 do
+                local id, name = GetChannelName(i);
+                if name == "world" then
+                    SendChatMessage(message, "CHANNEL", nil, id)
+                end
+            end
+        end
     end
 end
 
--- 修改后的检查并发送哀悼消息函数
 function HCDR_CheckAndSendCondolence(charName, charLevel)
     local realmKey = HCDR_GetRealmKey()
     
@@ -337,15 +385,12 @@ function HCDR_CheckAndSendCondolence(charName, charLevel)
         
         -- 检查角色等级是否达到设定值
         if level >= HCDR_Settings[realmKey].condolenceMinLevel then
-            -- 发送哀悼消息
-            SendChatMessage("你如星辰，虽已陨落，但光芒永存，照亮我们前行的道路", "WHISPER", nil, pureName)
+            local message = HCDR_Settings[realmKey].customCondolenceText or "你如星辰，虽已陨落，但光芒永存，照亮我们前行的道路"
+            SendChatMessage(message, "WHISPER", nil, pureName)
             DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：已向 "..pureName.." (等级 "..level..") 发送哀悼消息")
         end
     end
 end
-
-
-
 
 -- 添加右上角关闭按钮
 local CloseButton = CreateFrame("Button", "HCDR_CloseButton", HCDR_Frame, "UIPanelCloseButton")
@@ -414,10 +459,10 @@ for i = 1, 10 do
     row.deleteBtn:SetPoint("TOPLEFT", 870, yPos - 2)
     row.deleteBtn:SetText("删除")
     
-	-- 设置复制按钮（放在删除按钮右边）
+	-- 设置复制按钮
     row.copyBtn:SetWidth(50)
     row.copyBtn:SetHeight(20)
-    row.copyBtn:SetPoint("TOPLEFT", 920, yPos - 2)  -- 调整位置
+    row.copyBtn:SetPoint("TOPLEFT", 920, yPos - 2)
     row.copyBtn:SetText("复制")
 	
     -- 初始化隐藏按钮
@@ -434,10 +479,60 @@ for i = 1, 10 do
     DataRows[i] = row
 end
 
--- 分页控件
-local PageText = HCDR_Frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-PageText:SetPoint("BOTTOM", 0, 25)
-PageText:SetText("第 1 页")
+-- 新增分页控件组件
+local PagePrefixText = HCDR_Frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+PagePrefixText:SetPoint("BOTTOM", -50, 25)
+PagePrefixText:SetText("第")
+
+-- 创建页码输入框
+local PageEditBox = CreateFrame("EditBox", "HCDR_PageEditBox", HCDR_Frame, "InputBoxTemplate")
+PageEditBox:SetWidth(20)
+PageEditBox:SetHeight(20)
+PageEditBox:SetPoint("LEFT", PagePrefixText, "RIGHT", 5, 0)
+PageEditBox:SetAutoFocus(false)
+PageEditBox:SetNumeric(true)
+PageEditBox:SetMaxLetters(4)
+PageEditBox:SetText("1")
+
+-- 页码输入框事件处理
+PageEditBox:SetScript("OnEscapePressed", function()
+    this:ClearFocus()
+end)
+
+PageEditBox:SetScript("OnEnterPressed", function()
+    this:ClearFocus()
+    local pageNum = tonumber(this:GetText()) or 1
+    local realmKey = HCDR_GetRealmKey()
+    local serverData = HCDR_Data[realmKey] or {}
+    local totalEntries = table.getn(serverData)
+    local totalPages = totalEntries > 0 and math.ceil(totalEntries / 10) or 1
+    
+    if pageNum < 1 then pageNum = 1 end
+    if pageNum > totalPages then pageNum = totalPages end
+    
+    HCDR_CurrentPage = pageNum
+    HCDR_UpdateDisplay()
+end)
+
+PageEditBox:SetScript("OnEditFocusLost", function()
+    local pageNum = tonumber(this:GetText()) or 1
+    local realmKey = HCDR_GetRealmKey()
+    local serverData = HCDR_Data[realmKey] or {}
+    local totalEntries = table.getn(serverData)
+    local totalPages = totalEntries > 0 and math.ceil(totalEntries / 10) or 1
+    
+    if pageNum < 1 then pageNum = 1 end
+    if pageNum > totalPages then pageNum = totalPages end
+    
+    this:SetText(tostring(pageNum))
+    HCDR_CurrentPage = pageNum
+    HCDR_UpdateDisplay()
+end)
+
+local PageSuffixText = HCDR_Frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+PageSuffixText:SetPoint("LEFT", PageEditBox, "RIGHT", 5, 0)
+PageSuffixText:SetText("页 / 总 x 页")
+
 
 -- 上一页按钮
 local PrevButton = CreateFrame("Button", nil, HCDR_Frame, "UIPanelButtonTemplate")
@@ -447,13 +542,13 @@ PrevButton:SetPoint("BOTTOMLEFT", 350, 20)
 PrevButton:SetText("上一页")
 PrevButton:Disable()
 
--- 新增：首页按钮
+-- 首页按钮
 local FirstPageButton = CreateFrame("Button", nil, HCDR_Frame, "UIPanelButtonTemplate")
 FirstPageButton:SetWidth(60)
 FirstPageButton:SetHeight(22)
-FirstPageButton:SetPoint("RIGHT", PrevButton, "LEFT", -10, 0) -- 放在上一页按钮的左边
+FirstPageButton:SetPoint("RIGHT", PrevButton, "LEFT", -10, 0)
 FirstPageButton:SetText("首页")
-FirstPageButton:Disable() -- 初始在第1页时禁用
+FirstPageButton:Disable()
 
 -- 下一页按钮
 local NextButton = CreateFrame("Button", nil, HCDR_Frame, "UIPanelButtonTemplate")
@@ -462,99 +557,104 @@ NextButton:SetHeight(22)
 NextButton:SetPoint("BOTTOMRIGHT", -350, 20)
 NextButton:SetText("下一页")
 
--- 新增：尾页按钮
+-- 尾页按钮
 local LastPageButton = CreateFrame("Button", nil, HCDR_Frame, "UIPanelButtonTemplate")
 LastPageButton:SetWidth(60)
 LastPageButton:SetHeight(22)
-LastPageButton:SetPoint("LEFT", NextButton, "RIGHT", 10, 0) -- 放在下一页按钮的右边
+LastPageButton:SetPoint("LEFT", NextButton, "RIGHT", 10, 0)
 LastPageButton:SetText("尾页")
+
+-- Author
+local AuthorText = HCDR_Frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+AuthorText:SetPoint("LEFT", LastPageButton, "RIGHT", 160, 0)
+AuthorText:SetText("by Shirley.")
+
+
+-- 添加设置按钮 
+local OpenSettingsButton = CreateFrame("Button", nil, HCDR_Frame, "UIPanelButtonTemplate")
+OpenSettingsButton:SetWidth(60)
+OpenSettingsButton:SetHeight(22)
+OpenSettingsButton:SetPoint("TOPRIGHT", -170, -20)
+OpenSettingsButton:SetText("设置")
+OpenSettingsButton:SetScript("OnClick", function()
+	-- 点击设置后关闭主窗口
+	HCDR_Frame:Hide()
+    HCDR_SettingsFrame:Show()
+end)
+
 -- 添加删除所有数据按钮
 local DeleteAllButton = CreateFrame("Button", nil, HCDR_Frame, "UIPanelButtonTemplate")
 DeleteAllButton:SetWidth(120)
 DeleteAllButton:SetHeight(22)
-DeleteAllButton:SetPoint("BOTTOMRIGHT", -50, 380)
+DeleteAllButton:SetPoint("TOPRIGHT", -50, -20)
 DeleteAllButton:SetText("删除所有数据")
 
--- 创建左侧文本
-local LeftText = HCDR_Frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-LeftText:SetPoint("TOPLEFT", HCDR_Frame, "TOPLEFT", 650, -20) -- 根据需要调整位置
-LeftText:SetText("接收")
+--  添加设置界面 
+local HCDR_SettingsFrame = CreateFrame("Frame", "HCDR_SettingsFrame", UIParent)
+-- 确保设置界面置顶
+HCDR_SettingsFrame:SetFrameStrata("DIALOG")  -- 设置为对话框层级
+HCDR_SettingsFrame:SetToplevel(true)         -- 设置为顶级窗口
 
--- 创建等级输入框
-LevelFilterEditBox = CreateFrame("EditBox", "HC_LevelFilterEditBox", HCDR_Frame, "InputBoxTemplate")
-LevelFilterEditBox:SetPoint("LEFT", LeftText, "RIGHT", 5, 0) -- 紧接在"接收"后面
-LevelFilterEditBox:SetWidth(20)
-LevelFilterEditBox:SetHeight(20)
-LevelFilterEditBox:SetAutoFocus(false)
-LevelFilterEditBox:SetText("1") -- 默认值
-
--- 创建右侧文本
-local RightText = HCDR_Frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-RightText:SetPoint("LEFT", LevelFilterEditBox, "RIGHT", 5, 0) -- 紧接在输入框后面
-RightText:SetText("级以上死亡消息")
-
-
--- 设置等级输入框的事件处理
-LevelFilterEditBox:SetScript("OnEscapePressed", function()
-	local level = tonumber(LevelFilterEditBox:GetText()) or 1
-    if level < 1 then level = 1 end
-    if level > 60 then level = 60 end
-    LevelFilterEditBox:SetText(tostring(level))
-    
-    -- 执行命令
-    SendChatMessage(".hcm "..level)
-	DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：接收死亡消息等级修改为"..level.."级以上！")
-	-- 失去焦点
-    LevelFilterEditBox:ClearFocus()
+HCDR_SettingsFrame:SetWidth(400)
+HCDR_SettingsFrame:SetHeight(250) -- 增加高度以容纳新控件
+HCDR_SettingsFrame:SetPoint("CENTER", 0, 0)
+HCDR_SettingsFrame:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true,
+    tileSize = 32,
+    edgeSize = 32,
+    insets = { left = 11, right = 12, top = 12, bottom = 11 }
+})
+HCDR_SettingsFrame:SetMovable(true)
+HCDR_SettingsFrame:EnableMouse(true)
+HCDR_SettingsFrame:RegisterForDrag("LeftButton")
+HCDR_SettingsFrame:SetScript("OnDragStart", function() 
+    HCDR_SettingsFrame:StartMoving() 
 end)
-
-LevelFilterEditBox:SetScript("OnEnterPressed", function()
-    local level = tonumber(LevelFilterEditBox:GetText()) or 1
-    if level < 1 then level = 1 end
-    if level > 60 then level = 60 end
-    LevelFilterEditBox:SetText(tostring(level))
-    
-    -- 执行命令
-    SendChatMessage(".hcm "..level)
-    DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：接收死亡消息等级修改为"..level.."级以上！")
-    -- 失去焦点
-    LevelFilterEditBox:ClearFocus()
+HCDR_SettingsFrame:SetScript("OnDragStop", function() 
+    HCDR_SettingsFrame:StopMovingOrSizing() 
 end)
+HCDR_SettingsFrame:Hide()
 
 
+-- 设置界面标题
+local SettingsTitle = HCDR_SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+SettingsTitle:SetPoint("TOP", 0, -15)
+SettingsTitle:SetText("|cFFFFD700专家模式死亡讣告 - 设置|r")
 
-LevelFilterEditBox:SetScript("OnTextChanged", function()
-	local realmKey = HCDR_GetRealmKey()
-    local level = tonumber(LevelFilterEditBox:GetText()) or 1
-    if level < 1 then level = 1 end
-    if level > 60 then level = 60 end
-	HCDR_Settings[realmKey].Receivedeathmessagelevel = level
-    this:SetText(tostring(level))
+-- 设置界面关闭按钮
+local SettingsCloseButton = CreateFrame("Button", "HCDR_SettingsCloseButton", HCDR_SettingsFrame, "UIPanelCloseButton")
+SettingsCloseButton:SetPoint("TOPRIGHT", HCDR_SettingsFrame, "TOPRIGHT", -7, -7)
+SettingsCloseButton:SetScript("OnClick", function()
+    HCDR_SettingsFrame:Hide()
 end)
-
-
-
-
-LevelFilterEditBox:SetScript("OnEditFocusLost", function()
-	local realmKey = HCDR_GetRealmKey()
-    local level = tonumber(LevelFilterEditBox:GetText()) or 1
-    if level < 1 then level = 1 end
-    if level > 60 then level = 60 end
-	HCDR_Settings[realmKey].Receivedeathmessagelevel = level
-    this:SetText(tostring(level))
-end)
-
 
 -- 添加自动发送吃席复选框
-local HCDR_AutoSendCheckbox = CreateFrame("CheckButton", "HCDR_AutoSendCheckbox", HCDR_Frame, "UICheckButtonTemplate")
+local HCDR_AutoSendCheckbox = CreateFrame("CheckButton", "HCDR_AutoSendCheckbox", HCDR_SettingsFrame, "UICheckButtonTemplate")
 HCDR_AutoSendCheckbox:SetWidth(20)
 HCDR_AutoSendCheckbox:SetHeight(20)
-HCDR_AutoSendCheckbox:SetPoint("BOTTOMLEFT", 20, 20)
+HCDR_AutoSendCheckbox:SetPoint("TOPLEFT", 20, -50)
 
 -- 添加复选框文本
-local AutoSendText = HCDR_Frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+local AutoSendText = HCDR_SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 AutoSendText:SetPoint("LEFT", HCDR_AutoSendCheckbox, "RIGHT", 5, 0)
-AutoSendText:SetText("自动发送吃席消息到硬核频道")
+AutoSendText:SetText("自动吃席")
+
+-- 添加吃席消息等级输入框
+local HCDR_FeastLevelEditBox = CreateFrame("EditBox", "HCDR_FeastLevelEditBox", HCDR_SettingsFrame, "InputBoxTemplate")
+HCDR_FeastLevelEditBox:SetWidth(20)
+HCDR_FeastLevelEditBox:SetHeight(20)
+HCDR_FeastLevelEditBox:SetPoint("LEFT", AutoSendText, "RIGHT", 10, 0)
+HCDR_FeastLevelEditBox:SetAutoFocus(false)
+HCDR_FeastLevelEditBox:SetNumeric(true)
+HCDR_FeastLevelEditBox:SetMaxLetters(2)
+HCDR_FeastLevelEditBox:SetText("60")
+
+-- 添加吃席等级文本
+local FeastLevelText = HCDR_SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+FeastLevelText:SetPoint("LEFT", HCDR_FeastLevelEditBox, "RIGHT", 5, 0)
+FeastLevelText:SetText("级及以上")
 
 HCDR_AutoSendCheckbox:SetScript("OnClick", function()
     local realmKey = HCDR_GetRealmKey()
@@ -570,20 +670,182 @@ HCDR_AutoSendCheckbox:SetScript("OnClick", function()
     end
 end)
 
+-- 设置吃席等级输入框的事件处理
+HCDR_FeastLevelEditBox:SetScript("OnEscapePressed", function()
+	local realmKey = HCDR_GetRealmKey()
+    local text = this:GetText()
+    local level = tonumber(text) or 1
+    
+    -- 确保等级在有效范围内
+    if level < 1 then
+        level = 1
+    elseif level > 60 then
+        level = 60
+    end
+	
+	DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：自动发送吃席消息等级修改为"..level.."级及以上！")
+	
+	-- 失去焦点
+    this:ClearFocus()
+end)
+
+HCDR_FeastLevelEditBox:SetScript("OnEnterPressed", function()
+	local realmKey = HCDR_GetRealmKey()
+    local text = this:GetText()
+    local level = tonumber(text) or 1
+    
+    -- 确保等级在有效范围内
+    if level < 1 then
+        level = 1
+    elseif level > 60 then
+        level = 60
+    end
+	
+	DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：自动发送吃席消息等级修改为"..level.."级及以上！")
+	
+	-- 失去焦点
+    this:ClearFocus()
+end)
+
+HCDR_FeastLevelEditBox:SetScript("OnTextChanged", function()
+    local realmKey = HCDR_GetRealmKey()
+    local text = this:GetText()
+    local level = tonumber(text) or 1
+    
+    -- 确保等级在有效范围内
+    if level < 1 then
+        level = 1
+    elseif level > 60 then
+        level = 60
+    end
+	
+    HCDR_Settings[realmKey].feastMinLevel = level
+    this:SetText(tostring(level))
+end)
+
+HCDR_FeastLevelEditBox:SetScript("OnEditFocusLost", function()
+    local realmKey = HCDR_GetRealmKey()
+    local text = this:GetText()
+    local level = tonumber(text) or 1
+    
+    -- 确保等级在有效范围内
+    if level < 1 then
+        level = 1
+    elseif level > 60 then
+        level = 60
+    end
+    
+    HCDR_Settings[realmKey].feastMinLevel = level
+    this:SetText(tostring(level))
+end)
+
+
+
+-- 创建下拉框
+local channelDropdown = CreateFrame("Frame", "HCDR_ChannelDropdown", HCDR_SettingsFrame, "UIDropDownMenuTemplate")
+channelDropdown:SetPoint("LEFT", FeastLevelText, "RIGHT", 0, -2)
+channelDropdown:SetWidth(150)
+
+-- 修改下拉框初始化函数
+local function InitializeChannelDropdown(self, level, menuList)
+    local realmKey = HCDR_GetRealmKey()
+    local currentChannel = HCDR_Settings[realmKey].feastChannel or "Hardcore"
+    
+    local info = {}
+    
+    -- 硬核频道选项
+    info.text = "硬核频道"
+    info.value = "Hardcore"
+    info.checked = (currentChannel == "Hardcore")
+    info.func = function(button)
+        -- 保存设置
+        local realmKey = HCDR_GetRealmKey()
+        HCDR_Settings[realmKey].feastChannel = "Hardcore"
+        -- 更新显示文本
+        UIDropDownMenu_SetText("硬核频道", channelDropdown)
+    end
+    UIDropDownMenu_AddButton(info)
+    
+    -- World频道选项
+    info = {}
+    info.text = "World频道"
+    info.value = "world"
+    info.checked = (currentChannel == "world")
+    info.func = function(button)
+        -- 保存设置
+        local realmKey = HCDR_GetRealmKey()
+        HCDR_Settings[realmKey].feastChannel = "world"
+        -- 更新显示文本
+        UIDropDownMenu_SetText("World频道", channelDropdown)
+    end
+    UIDropDownMenu_AddButton(info)
+    
+    -- 确保设置正确的选中状态
+    UIDropDownMenu_SetSelectedValue(channelDropdown, currentChannel)
+end
+
+HCDR_SettingsFrame:SetScript("OnShow", function()
+    -- 确保数据已经初始化
+    HCDR_InitializeData()
+    
+    local realmKey = HCDR_GetRealmKey()
+    
+	-- 新增：更新是否艾特对方复选框状态
+    if HCDR_ShouldAtCheckbox then
+        HCDR_ShouldAtCheckbox:SetChecked(HCDR_Settings[realmKey].shouldAtWithLevel or false)
+    end
+	
+    -- 更新复选框状态
+    if HCDR_AutoSendCheckbox then
+        HCDR_AutoSendCheckbox:SetChecked(HCDR_Settings[realmKey].autoSendFeast or false)
+    end
+    
+    if HCDR_AutoSendCondolenceCheckbox then
+        HCDR_AutoSendCondolenceCheckbox:SetChecked(HCDR_Settings[realmKey].autoSendCondolence or false)
+    end
+    
+    if HCDR_FeastLevelEditBox then
+        HCDR_FeastLevelEditBox:SetText(tostring(HCDR_Settings[realmKey].feastMinLevel or 60))
+    end
+    
+    if HCDR_CondolenceLevelEditBox then
+        HCDR_CondolenceLevelEditBox:SetText(tostring(HCDR_Settings[realmKey].condolenceMinLevel or 60))
+    end
+    
+    if LevelFilterEditBox then
+        LevelFilterEditBox:SetText(tostring(HCDR_Settings[realmKey].Receivedeathmessagelevel or 1))
+    end
+    
+    -- 下拉框初始化
+    local channelSetting = HCDR_Settings[realmKey].feastChannel or "Hardcore"
+    UIDropDownMenu_Initialize(channelDropdown, InitializeChannelDropdown)
+    if channelSetting == "Hardcore" then
+        UIDropDownMenu_SetText("硬核频道", channelDropdown)
+    else
+        UIDropDownMenu_SetText("世界频道", channelDropdown)
+    end
+end)
+
+-- 确保在插件加载时初始化下拉菜单
+HCDR_SettingsFrame:SetScript("OnShow", function()
+    UIDropDownMenu_Initialize(channelDropdown, InitializeChannelDropdown)
+end)
+
+
 -- 添加自动发送哀悼消息复选框
-local HCDR_AutoSendCondolenceCheckbox = CreateFrame("CheckButton", "HCDR_AutoSendCondolenceCheckbox", HCDR_Frame, "UICheckButtonTemplate")
+local HCDR_AutoSendCondolenceCheckbox = CreateFrame("CheckButton", "HCDR_AutoSendCondolenceCheckbox", HCDR_SettingsFrame, "UICheckButtonTemplate")
 HCDR_AutoSendCondolenceCheckbox:SetWidth(20)
 HCDR_AutoSendCondolenceCheckbox:SetHeight(20)
-HCDR_AutoSendCondolenceCheckbox:SetPoint("LEFT", NextButton, "RIGHT", 80, 0)
+HCDR_AutoSendCondolenceCheckbox:SetPoint("TOPLEFT", 20, -80)
 
 -- 添加哀悼复选框文本
-local CondolenceText = HCDR_Frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+local CondolenceText = HCDR_SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 CondolenceText:SetPoint("LEFT", HCDR_AutoSendCondolenceCheckbox, "RIGHT", 5, 0)
-CondolenceText:SetText("自动发送哀悼消息")
+CondolenceText:SetText("自动悼念")
 
--- 添加等级输入框
-local HCDR_CondolenceLevelEditBox = CreateFrame("EditBox", "HCDR_CondolenceLevelEditBox", HCDR_Frame, "InputBoxTemplate")
-HCDR_CondolenceLevelEditBox:SetWidth(30)
+-- 添加哀悼等级输入框
+local HCDR_CondolenceLevelEditBox = CreateFrame("EditBox", "HCDR_CondolenceLevelEditBox", HCDR_SettingsFrame, "InputBoxTemplate")
+HCDR_CondolenceLevelEditBox:SetWidth(20)
 HCDR_CondolenceLevelEditBox:SetHeight(20)
 HCDR_CondolenceLevelEditBox:SetPoint("LEFT", CondolenceText, "RIGHT", 10, 0)
 HCDR_CondolenceLevelEditBox:SetAutoFocus(false)
@@ -591,10 +853,10 @@ HCDR_CondolenceLevelEditBox:SetNumeric(true)
 HCDR_CondolenceLevelEditBox:SetMaxLetters(2)
 HCDR_CondolenceLevelEditBox:SetText("60")
 
--- 添加等级文本
-local LevelText = HCDR_Frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-LevelText:SetPoint("LEFT", HCDR_CondolenceLevelEditBox, "RIGHT", 5, 0)
-LevelText:SetText("级及以上")
+-- 添加哀悼等级文本
+local CondolenceLevelText = HCDR_SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+CondolenceLevelText:SetPoint("LEFT", HCDR_CondolenceLevelEditBox, "RIGHT", 5, 0)
+CondolenceLevelText:SetText("级及以上")
 
 -- 设置哀悼复选框的事件处理
 HCDR_AutoSendCondolenceCheckbox:SetScript("OnClick", function()
@@ -611,7 +873,7 @@ HCDR_AutoSendCondolenceCheckbox:SetScript("OnClick", function()
     end
 end)
 
--- 设置等级输入框的事件处理
+-- 设置哀悼等级输入框的事件处理
 HCDR_CondolenceLevelEditBox:SetScript("OnEscapePressed", function()
 	local realmKey = HCDR_GetRealmKey()
     local text = this:GetText()
@@ -680,7 +942,179 @@ HCDR_CondolenceLevelEditBox:SetScript("OnEditFocusLost", function()
     this:SetText(tostring(level))
 end)
 
--- 更新显示函数以支持等级筛选
+-- 消息接收
+
+-- 创建左侧文本
+local ReceiveText = HCDR_SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+ReceiveText:SetPoint("TOPLEFT", HCDR_SettingsFrame, "TOPLEFT", 20, -110)
+ReceiveText:SetText("接收")
+
+-- 创建等级输入框
+LevelFilterEditBox = CreateFrame("EditBox", "HC_LevelFilterEditBox", HCDR_SettingsFrame, "InputBoxTemplate")
+LevelFilterEditBox:SetPoint("LEFT", ReceiveText, "RIGHT", 5, 0)
+LevelFilterEditBox:SetWidth(20)
+LevelFilterEditBox:SetHeight(20)
+LevelFilterEditBox:SetAutoFocus(false)
+LevelFilterEditBox:SetText("1")
+
+-- 创建右侧文本
+local RightText = HCDR_SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+RightText:SetPoint("LEFT", LevelFilterEditBox, "RIGHT", 5, 0)
+RightText:SetText("级以上死亡消息")
+
+
+-- 设置等级输入框的事件处理
+LevelFilterEditBox:SetScript("OnEscapePressed", function()
+	local level = tonumber(LevelFilterEditBox:GetText()) or 1
+    if level < 1 then level = 1 end
+    if level > 60 then level = 60 end
+    LevelFilterEditBox:SetText(tostring(level))
+    
+    -- 执行命令
+    SendChatMessage(".hcm "..level)
+	DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：接收死亡消息等级修改为"..level.."级以上！")
+	-- 失去焦点
+    LevelFilterEditBox:ClearFocus()
+end)
+
+LevelFilterEditBox:SetScript("OnEnterPressed", function()
+    local level = tonumber(LevelFilterEditBox:GetText()) or 1
+    if level < 1 then level = 1 end
+    if level > 60 then level = 60 end
+    LevelFilterEditBox:SetText(tostring(level))
+    
+    -- 执行命令
+    SendChatMessage(".hcm "..level)
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：接收死亡消息等级修改为"..level.."级以上！")
+    -- 失去焦点
+    LevelFilterEditBox:ClearFocus()
+end)
+
+
+
+LevelFilterEditBox:SetScript("OnTextChanged", function()
+	local realmKey = HCDR_GetRealmKey()
+    local level = tonumber(LevelFilterEditBox:GetText()) or 1
+    if level < 1 then level = 1 end
+    if level > 60 then level = 60 end
+	HCDR_Settings[realmKey].Receivedeathmessagelevel = level
+    this:SetText(tostring(level))
+end)
+
+
+
+
+LevelFilterEditBox:SetScript("OnEditFocusLost", function()
+	local realmKey = HCDR_GetRealmKey()
+    local level = tonumber(LevelFilterEditBox:GetText()) or 1
+    if level < 1 then level = 1 end
+    if level > 60 then level = 60 end
+	HCDR_Settings[realmKey].Receivedeathmessagelevel = level
+    this:SetText(tostring(level))
+end)
+
+
+-- 在设置界面代码中找到"接收X级以上死亡消息"控件后添加以下代码
+-- 位置：在"接收X级以上死亡消息"控件下方（约Y坐标-140）
+
+-- 自定义吃席内容标题
+local CustomFeastText = HCDR_SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+CustomFeastText:SetPoint("TOPLEFT", 20, -140)
+CustomFeastText:SetText("自定义吃席内容")
+
+-- 新增：是否艾特对方复选框
+local HCDR_ShouldAtCheckbox = CreateFrame("CheckButton", "HCDR_ShouldAtCheckbox", HCDR_SettingsFrame, "UICheckButtonTemplate")
+HCDR_ShouldAtCheckbox:SetWidth(20)
+HCDR_ShouldAtCheckbox:SetHeight(20)
+HCDR_ShouldAtCheckbox:SetPoint("TOPLEFT", 150, -136)  -- 在自定义吃席内容下方
+
+-- 添加复选框文本
+local ShouldAtText = HCDR_SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+ShouldAtText:SetPoint("LEFT", HCDR_ShouldAtCheckbox, "RIGHT", 5, 0)
+ShouldAtText:SetText("是否艾特对方")
+
+-- 设置复选框点击事件
+HCDR_ShouldAtCheckbox:SetScript("OnClick", function()
+    local realmKey = HCDR_GetRealmKey()
+    local isChecked = this:GetChecked() and true or false
+    HCDR_Settings[realmKey].shouldAtWithLevel = isChecked
+    
+    if isChecked then
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：已启用发送吃席消息时艾特对方")
+    else
+        DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：已禁用发送吃席消息时艾特对方")
+    end
+end)
+
+-- 自定义吃席内容输入框
+local HCDR_CustomFeastEditBox = CreateFrame("EditBox", "HCDR_CustomFeastEditBox", HCDR_SettingsFrame, "InputBoxTemplate")
+HCDR_CustomFeastEditBox:SetWidth(350)
+HCDR_CustomFeastEditBox:SetHeight(20)
+HCDR_CustomFeastEditBox:SetPoint("TOPLEFT", CustomFeastText, "BOTTOMLEFT", 0, -5)
+HCDR_CustomFeastEditBox:SetAutoFocus(false)
+
+-- 自定义悼念内容标题
+local CustomCondolenceText = HCDR_SettingsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+CustomCondolenceText:SetPoint("TOPLEFT", HCDR_CustomFeastEditBox, "BOTTOMLEFT", 0, -10)
+CustomCondolenceText:SetText("自定义悼念内容")
+
+-- 自定义悼念内容输入框
+local HCDR_CustomCondolenceEditBox = CreateFrame("EditBox", "HCDR_CustomCondolenceEditBox", HCDR_SettingsFrame, "InputBoxTemplate")
+HCDR_CustomCondolenceEditBox:SetWidth(350)
+HCDR_CustomCondolenceEditBox:SetHeight(20)
+HCDR_CustomCondolenceEditBox:SetPoint("TOPLEFT", CustomCondolenceText, "BOTTOMLEFT", 0, -5)
+HCDR_CustomCondolenceEditBox:SetAutoFocus(false)
+
+-- 增加设置界面高度以适应新控件
+HCDR_SettingsFrame:SetHeight(300) -- 从250增加到300
+
+
+-- 自定义吃席内容输入框事件处理
+HCDR_CustomFeastEditBox:SetScript("OnEscapePressed", function()
+    this:ClearFocus()
+end)
+
+HCDR_CustomFeastEditBox:SetScript("OnEnterPressed", function()
+    this:ClearFocus()
+end)
+
+-- 自定义吃席内容输入框事件处理
+HCDR_CustomFeastEditBox:SetScript("OnEditFocusLost", function()
+    local realmKey = HCDR_GetRealmKey()
+    local text = this:GetText()
+    -- 确保设置表存在
+    if not HCDR_Settings[realmKey] then
+        HCDR_Settings[realmKey] = {}
+    end
+    HCDR_Settings[realmKey].customFeastText = text
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：自定义吃席内容已保存")
+end)
+
+-- 自定义悼念内容输入框事件处理
+HCDR_CustomCondolenceEditBox:SetScript("OnEscapePressed", function()
+    this:ClearFocus()
+end)
+
+HCDR_CustomCondolenceEditBox:SetScript("OnEnterPressed", function()
+    this:ClearFocus()
+end)
+
+-- 自定义悼念内容输入框事件处理
+HCDR_CustomCondolenceEditBox:SetScript("OnEditFocusLost", function()
+    local realmKey = HCDR_GetRealmKey()
+    local text = this:GetText()
+    -- 确保设置表存在
+    if not HCDR_Settings[realmKey] then
+        HCDR_Settings[realmKey] = {}
+    end
+    HCDR_Settings[realmKey].customCondolenceText = text
+    DEFAULT_CHAT_FRAME:AddMessage("|cFF33FF99专家模式死亡讣告|r：自定义悼念内容已保存")
+end)
+
+
+
+
+-- 显示函数以支持等级筛选
 function HCDR_UpdateDisplay()
     local realmKey = HCDR_GetRealmKey()
     local serverData = HCDR_Data[realmKey] or {}
@@ -706,10 +1140,11 @@ function HCDR_UpdateDisplay()
     local totalEntries = table.getn(filteredData)
     local totalPages = totalEntries > 0 and math.ceil(totalEntries / 10) or 1
 
-    -- 更新分页文本
-    PageText:SetText("第 "..HCDR_CurrentPage.." 页 / 总 "..totalPages.." 页")
+    -- 分页文本
+    PageSuffixText:SetText("页 / 总 "..totalPages.." 页")
+	PageEditBox:SetText(tostring(HCDR_CurrentPage))
     
-    -- 更新按钮状态
+    -- 按钮状态
     if HCDR_CurrentPage <= 1 then
         FirstPageButton:Disable()
         PrevButton:Disable()
@@ -730,7 +1165,7 @@ function HCDR_UpdateDisplay()
     local startIndex = (HCDR_CurrentPage - 1) * 10 + 1
     local endIndex = math.min(startIndex + 9, totalEntries)
     
-    -- 更新表格行
+    -- 表格行
     for i = 1, 10 do
         local dataIndex = startIndex + i - 1
         local row = DataRows[i]
@@ -844,10 +1279,11 @@ NextButton:SetScript("OnClick", function()
     end
 end)
 
--- 在文件末尾添加以下代码（在HCDR_InitializeData()调用之前）
-
--- 创建复制面板（可见）
+-- 创建复制面板
 local HCDR_CopyFrame = CreateFrame("Frame", "HCDR_CopyFrame", UIParent)
+-- 确保设置界面置顶
+HCDR_CopyFrame:SetFrameStrata("DIALOG")  -- 设置为对话框层级
+HCDR_CopyFrame:SetToplevel(true)         -- 设置为顶级窗口
 HCDR_CopyFrame:SetWidth(600)
 HCDR_CopyFrame:SetHeight(150)
 HCDR_CopyFrame:SetPoint("CENTER", 0, 0)
@@ -882,11 +1318,11 @@ CopyCloseButton:SetScript("OnClick", function()
     HCDR_CopyFrame:Hide()
 end)
 
--- 创建编辑框 - 修改为多行编辑框
+-- 创建编辑框
 local CopyEditBox = CreateFrame("EditBox", "HCDR_CopyEditBox", HCDR_CopyFrame)
 CopyEditBox:SetWidth(550)
 CopyEditBox:SetHeight(120)  -- 增加高度以容纳多行文本
-CopyEditBox:SetMultiLine(true)  -- 关键：设置为多行
+CopyEditBox:SetMultiLine(true)  -- 设置为多行
 CopyEditBox:SetAutoFocus(false)
 CopyEditBox:SetPoint("TOP", 0, -40)
 CopyEditBox:SetFontObject(GameFontHighlight)
@@ -920,6 +1356,8 @@ end)
 
 -- 修改全选函数
 function HCDR_CopyToClipboard(text)
+	-- 点击复制后关闭主窗口
+	HCDR_Frame:Hide()
     HCDR_CopyFrame:Show()
     CopyEditBox:SetText(text)
     CopyEditBox:SetFocus()
@@ -941,7 +1379,7 @@ local levelRanges = {
     {text = "30-40", min = 30, max = 40},
     {text = "40-50", min = 40, max = 50},
     {text = "50-60", min = 50, max = 60},
-    {text = "全部", min = 0, max = 100} -- 将"全部"移到最后一个
+    {text = "全部", min = 0, max = 100}
 }
 
 -- 为每个按钮单独设置位置（分两行布局）
